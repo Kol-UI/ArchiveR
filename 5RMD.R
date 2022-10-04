@@ -1,0 +1,717 @@
+---
+title: "R Notebook"
+output:
+  pdf_document: default
+  html_notebook: default
+---
+
+# Présentation du projet
+
+Le but de ce projet est de déterminer les facteurs qui influent sur les notes en mathématiques de troisième année de deux écoles
+publiques portuguaises durant l'année académique 2005-2006.
+Pour cela, nous avons étudié un certain nombre de données propres à chaque étudiant (âge, sexe, éducation des parents) que nous avons comparé entre elles.
+
+# 1
+
+```{r}
+library(scales)
+#library(dplyr, warn.conflicts = FALSE)
+#library(ggplot2)
+library(ggcorrplot)
+library(psych)
+library(scatterplot3d)
+library(GGally)
+library(tidyverse)
+data <- read.csv("5rbig_students.csv")
+```
+
+En premier lieu, on importe les différentes librairies nécessaires pour étudier, afficher, tester et analyser les données.
+On importe également les données du fichier en csv que l'on va analyser.
+
+# 1.1
+
+```{r}
+sapply(data, function(x) sum(is.na(x)))
+```
+
+On regarde si le tableau de données contient des valeurs nulles ou manquantes, auquel cas il faudrait les remplacer ou les supprimer.
+On observe ici qu'il n'y a aucune donnée nulle.
+
+# 1.2
+
+```{r}
+data$finalResult[data$G3<10] <- "fail"
+data$finalResult[data$G3>=10] <- "pass"
+print(head(data))
+```
+
+Nous avons créé une autre colonne appelée finalResult comportant des valeurs binaires, on affiche "fail" si les notes de la dernière G3 sont en dessous de 10,
+à l'inverse on affiche "pass". Nous créons de cette manière une donnée catégorique à partir de données quantitatives.
+
+# 1.3
+
+```{r}
+data$academicGrade[data$G3>=16] <- "A"
+data$academicGrade[data$G3>=14 & data$G3<=15] <- "B"
+data$academicGrade[data$G3>=12 & data$G3<=13] <- "C"
+data$academicGrade[data$G3>=10 & data$G3<=11] <- "D"
+data$academicGrade[data$G3<=9] <- "E"
+print(head(data))
+```
+
+Ici nous ajoutons également une donnée catégorique : academicGrade. Elle permet de savoir plus précisement la note de l'élève en la répartissant en 5 catégories. Chaque catégorie correspond à une lettre : de A à E. A correspond à une très bonne note et E à une mauvaise. 
+
+# 2
+
+```{r}
+str(data)
+```
+
+La commande str() nous permet de nous renseigner sur le type de chaque donnée. Cela va notamment nous permettre de savoir si une donnée est quantitative ou catégorique. Une donnée est catégorique si le type est chr et elle est quantitative si le type est int.
+
+# 2.1
+
+Dans cette sous-partie, il s'agit d'analyser les données catégoriques et d'étudier individuellement quelques données et de voir et analyser leurs fréquences/proportions/test de "goodness of fit". Il s'agira de voir si une donnée va être intéressant de l'étudier par la suite.
+Les données catégoriques que nous allons étudier sont : school, sex, paid, Mjob, Fjob, higher, finalResult et academicGrade.
+
+## school
+
+```{r}
+data.school <- data %>%
+  group_by(school) %>%
+  summarise(freqs = n()) %>%
+  mutate(props = paste0(round(100 * freqs/sum(freqs), 0), "%"))
+
+data.school
+```
+
+```{r}
+props_school <- rep(1/nrow(data.school), times=nrow(data.school))
+
+chisq.test(table(data$school), p = props_school)
+```
+
+```{r}
+plotdata <- data %>%
+  count(school) %>%
+  mutate(pct = n / sum(n),
+         pctlabel = paste0(round(pct*100), "%"))
+
+# plot the bars as percentages, 
+# in decending order with bar labels
+ggplot(plotdata, 
+       aes(x = reorder(school, -pct),
+           y = pct)) + 
+  geom_bar(stat = "identity", 
+           fill = "indianred3", 
+           color = "black") +
+  geom_text(aes(label = pctlabel), 
+            vjust = -0.25) +
+  scale_y_continuous(labels = percent) +
+  labs(x = "School", 
+       y = "Percent", 
+       title  = "Students by school")
+```
+
+On observe ici qu'une grande majorité d'étudiants viennent de l'école GP (88%) et seulement 12% de l'école MS. Le résultat du test "goodness of fit" nous indique que l'on rejette l'hypothèse nulle. Les tailles du nombre d'étudiants ne sont pas les égales puisque p-value < 2.2e-16 ce qui est inférieur à la valeur de référence égale à 5%.
+
+## sex
+
+```{r}
+data.sex <- data %>%
+  group_by(sex) %>%
+  summarise(freqs = n()) %>%
+  mutate(props = paste0(round(100 * freqs/sum(freqs), 0), "%"))
+
+data.sex
+```
+
+```{r}
+props_sex <- rep(1/nrow(data.sex), times=nrow(data.sex))
+
+chisq.test(table(data$sex), p = props_sex)
+```
+
+```{r}
+plotdata <- data %>%
+  count(sex) %>%
+  mutate(pct = n / sum(n),
+         pctlabel = paste0(round(pct*100), "%"))
+
+# plot the bars as percentages, 
+# in decending order with bar labels
+ggplot(plotdata, 
+       aes(x = reorder(sex, -pct),
+           y = pct)) + 
+  geom_bar(stat = "identity", 
+           fill = "indianred3", 
+           color = "black") +
+  geom_text(aes(label = pctlabel), 
+            vjust = -0.25) +
+  scale_y_continuous(labels = percent) +
+  labs(x = "Sex", 
+       y = "Percent", 
+       title  = "Students by sex")
+```
+
+On observe qu'il y a quasiment autant de filles (53%) que de garçons (47%).
+
+## paid
+
+```{r}
+data.paid <- data %>%
+  group_by(paid) %>%
+  summarise(freqs = n()) %>%
+  mutate(props = paste0(round(100 * freqs/sum(freqs), 0), "%"))
+
+data.paid
+```
+
+```{r}
+props_paid <- rep(1/nrow(data.paid), times=nrow(data.paid))
+
+chisq.test(table(data$paid), p = props_paid)
+```
+
+```{r}
+plotdata <- data %>%
+  count(paid) %>%
+  mutate(pct = n / sum(n),
+         pctlabel = paste0(round(pct*100), "%"))
+
+# plot the bars as percentages, 
+# in decending order with bar labels
+ggplot(plotdata, 
+       aes(x = reorder(paid, -pct),
+           y = pct)) + 
+  geom_bar(stat = "identity", 
+           fill = "indianred3", 
+           color = "black") +
+  geom_text(aes(label = pctlabel), 
+            vjust = -0.25) +
+  scale_y_continuous(labels = percent) +
+  labs(x = "Paid", 
+       y = "Percent", 
+       title  = "Students by Paid")
+```
+
+Un peu moins de la moitié des étudiants ont pris des cours payants en math supplémentaires.
+
+## Mjob
+
+```{r}
+data.Mjob <- data %>%
+  group_by(Mjob) %>%
+  summarise(freqs = n()) %>%
+  mutate(props = paste0(round(100 * freqs/sum(freqs), 0), "%"))
+
+data.Mjob
+```
+
+```{r}
+props_Mjob <- rep(1/nrow(data.Mjob), times=nrow(data.Mjob))
+
+chisq.test(table(data$Mjob), p = props_Mjob)
+```
+
+```{r}
+plotdata <- data %>%
+  count(Mjob) %>%
+  mutate(pct = n / sum(n),
+         pctlabel = paste0(round(pct*100), "%"))
+
+# plot the bars as percentages, 
+# in decending order with bar labels
+ggplot(plotdata, 
+       aes(x = reorder(Mjob, -pct),
+           y = pct)) + 
+  geom_bar(stat = "identity", 
+           fill = "indianred3", 
+           color = "black") +
+  geom_text(aes(label = pctlabel), 
+            vjust = -0.25) +
+  scale_y_continuous(labels = percent) +
+  labs(x = "Mjob", 
+       y = "Percent", 
+       title  = "Students by Mjob")
+```
+
+## Fjob
+
+```{r}
+data.Fjob <- data %>%
+  group_by(Fjob) %>%
+  summarise(freqs = n()) %>%
+  mutate(props = paste0(round(100 * freqs/sum(freqs), 0), "%"))
+
+data.Fjob
+```
+
+```{r}
+props_Fjob <- rep(1/nrow(data.Fjob), times=nrow(data.Fjob))
+
+chisq.test(table(data$Fjob), p = props_Fjob)
+```
+
+```{r}
+plotdata <- data %>%
+  count(Fjob) %>%
+  mutate(pct = n / sum(n),
+         pctlabel = paste0(round(pct*100), "%"))
+
+# plot the bars as percentages, 
+# in decending order with bar labels
+ggplot(plotdata, 
+       aes(x = reorder(Fjob, -pct),
+           y = pct)) + 
+  geom_bar(stat = "identity", 
+           fill = "indianred3", 
+           color = "black") +
+  geom_text(aes(label = pctlabel), 
+            vjust = -0.25) +
+  scale_y_continuous(labels = percent) +
+  labs(x = "Fjob", 
+       y = "Percent", 
+       title  = "Students by Fjob")
+```
+
+
+## higher
+
+```{r}
+data.higher <- data %>%
+  group_by(higher) %>%
+  summarise(freqs = n()) %>%
+  mutate(props = paste0(round(100 * freqs/sum(freqs), 0), "%"))
+
+data.higher
+```
+
+```{r}
+props_higher <- rep(1/nrow(data.higher), times=nrow(data.higher))
+
+chisq.test(table(data$higher), p = props_higher)
+```
+
+```{r}
+plotdata <- data %>%
+  count(higher) %>%
+  mutate(pct = n / sum(n),
+         pctlabel = paste0(round(pct*100), "%"))
+
+# plot the bars as percentages, 
+# in decending order with bar labels
+ggplot(plotdata, 
+       aes(x = reorder(higher, -pct),
+           y = pct)) + 
+  geom_bar(stat = "identity", 
+           fill = "indianred3", 
+           color = "black") +
+  geom_text(aes(label = pctlabel), 
+            vjust = -0.25) +
+  scale_y_continuous(labels = percent) +
+  labs(x = "Higher", 
+       y = "Percent", 
+       title  = "Students by Higher")
+```
+
+## finalResult
+
+```{r}
+data.finalResult <- data %>%
+  group_by(finalResult) %>%
+  summarise(freqs = n()) %>%
+  mutate(props = paste0(round(100 * freqs/sum(freqs), 0), "%"))
+
+data.finalResult
+```
+
+```{r}
+props_finalResult <- rep(1/nrow(data.finalResult), times=nrow(data.finalResult))
+
+chisq.test(table(data$finalResult), p = props_finalResult)
+```
+
+```{r}
+plotdata <- data %>%
+  count(finalResult) %>%
+  mutate(pct = n / sum(n),
+         pctlabel = paste0(round(pct*100), "%"))
+
+# plot the bars as percentages, 
+# in decending order with bar labels
+ggplot(plotdata, 
+       aes(x = reorder(finalResult, -pct),
+           y = pct)) + 
+  geom_bar(stat = "identity", 
+           fill = "indianred3", 
+           color = "black") +
+  geom_text(aes(label = pctlabel), 
+            vjust = -0.25) +
+  scale_y_continuous(labels = percent) +
+  labs(x = "finalResult", 
+       y = "Percent", 
+       title  = "Students by finalResult")
+```
+
+On remarque qu'une majorité d'étudiants ont réussi à avoir la moyenne en math en 3ème année (67%).
+
+## academicGrade
+
+```{r}
+data.academicGrade <- data %>%
+  group_by(academicGrade) %>%
+  summarise(freqs = n()) %>%
+  mutate(props = paste0(round(100 * freqs/sum(freqs), 0), "%"))
+
+data.academicGrade
+```
+
+```{r}
+props_academicGrade <- rep(1/nrow(data.academicGrade), times=nrow(data.academicGrade))
+
+chisq.test(table(data$academicGrade), p = props_academicGrade)
+```
+
+```{r}
+plotdata <- data %>%
+  count(academicGrade) %>%
+  mutate(pct = n / sum(n),
+         pctlabel = paste0(round(pct*100), "%"))
+
+# plot the bars as percentages, 
+# in decending order with bar labels
+ggplot(plotdata, 
+       aes(x = reorder(academicGrade, -pct),
+           y = pct)) + 
+  geom_bar(stat = "identity", 
+           fill = "indianred3", 
+           color = "black") +
+  geom_text(aes(label = pctlabel), 
+            vjust = -0.25) +
+  scale_y_continuous(labels = percent) +
+  labs(x = "academicGrade", 
+       y = "Percent", 
+       title  = "Students by academicGrade")
+```
+Le graphique semble cohérent : plus les notes sont meilleures moins nombreux sont les étudiants.
+
+# 2.2
+
+Dans cette sous-partie on comparer les données catégoriques entre elles, notamment les notes en mathématiques en 3 années (academicGrade) et quelques autres données pour voir si on peut tisser des liens entre elles.
+
+## school
+```{r}
+ggplot(data, 
+       aes(x = academicGrade, 
+           fill = school)) + 
+  geom_bar(position = "stack")
+```
+Ici on compare le nombre d'étudiants des deux écoles avec les notes en math. On remarque que le nombre d'étudiants augmente proportionnellement sur tout type de notes. On peut donc déduire que le choix de l'école n'est pas un facteur d'une meilleure réussite en math bien que la plupart viennent de l'école GP.
+## sex
+```{r}
+ggplot(data, 
+       aes(x = academicGrade, 
+           fill = sex)) + 
+  geom_bar(position = "dodge")
+```
+On remarque qu'il y a légèrement plus d'étudiants d'hommes qui ont de meilleures notes en math et un plus grand nombre de femmes qui ont de moins bonnes notes en math.
+## paid
+```{r}
+ggplot(data, 
+       aes(x = academicGrade, 
+           fill = paid)) + 
+  geom_bar(position = "fill") +
+  labs(y = "Proportion")
+```
+On remarque qu'en moyenne ceux qui ont pris ou pas des cours supplémentaires payants en math n'ont pas trop d'effet sur les notes. 
+## Mjob
+```{r}
+ggplot(data, 
+       aes(x = academicGrade, 
+           fill = Mjob)) + 
+  geom_bar(position = "fill") +
+  labs(y = "Proportion")
+```
+En terme de proportions, on remarque ici que ceux qui ont leur mère qui travaille en tant que professeur ont en moyenne de meilleurs notes en math. Egalement moins d'élèves avec de très bonnes notes en math ont leur mère au foyer. 
+## Fjob
+```{r}
+ggplot(data, 
+       aes(x = academicGrade, 
+           fill = Fjob)) + 
+  geom_bar(position = "fill") +
+  labs(y = "Proportion")
+```
+En terme de proportions également, on note ici que les élèves qui ont un père qui est professeur sont beaucoup plus susceptibles d'avoir de bonnes en math. Cela étant beaucoup plus marqué si la mère est professeur.
+## higher
+```{r}
+ggplot(data, 
+       aes(x = finalResult, 
+           fill = higher)) + 
+  geom_bar(position = "dodge")
+```
+Malgré que plus d'élèves ont la moyenne en math, on remarque que les élèves qui ont la moyennee en math sont tout de mêmes plus nombreux à vouloir de faire de plus longues études supérieures. Egalement moins sont nombreux ceux qui ne veulent pas faire de longues études.
+
+# 2.3
+
+Dans cette sous-partie, on compare plusieurs données catégoriques avec en faisant des tests Chi-squared (tests valides si les valeurs des données sont supérieures à 5).
+## school
+```{r}
+result <- chisq.test(table(data$school,data$finalResult))
+result
+result$expected
+```
+La valeur p-value égale  à 0.6497 nous indique qu'il y'a n'a pas de corrélation entre la donnée school et finalResult.
+## sex
+```{r}
+result <- chisq.test(table(data$sex,data$academicGrade))
+result
+result$expected
+```
+La valeur p-value égale  à 0.1749 nous indique qu'il y'a n'a pas de corrélation entre la donnée sex et academicGrade.
+## Mjob
+```{r}
+result <- chisq.test(table(data$Mjob,data$academicGrade))
+result
+result$expected
+```
+La valeur p-value égale  à 0.07 nous indique qu'il y'a presque une corrélation entre la donnée Mjob et academicGrade.
+## Fjob
+```{r}
+result <- chisq.test(table(data$Fjob,data$academicGrade))
+result
+result$expected
+```
+La valeur p-value égale  à 0.15 nous indique qu'il y'a presque une corrélation entre la donnée Fjob et academicGrade.
+## higher
+```{r}
+result <- chisq.test(table(data$higher,data$finalResult))
+result
+result$expected
+```
+La valeur p-value égale  à 0.003 nous indique qu'il y'a une corrélation entre la donnée higher et finalResult.
+
+# 3
+
+```{r}
+str(data)
+```
+
+# 3.1
+
+Dans cette partie, il s'agit d'analyser des données numériques. Nous avons décidé d'analyser des données qui nous semblaient intéressantes. Nous avons donc choisi Medu, Fedu sutdytime, Walc.
+
+## Medu
+```{r}
+summary(data$Medu)
+boxplot.stats(data$Medu)
+describe(data$Medu)
+ggplot(data, aes(x = Medu)) +
+  geom_dotplot(fill = "red", 
+               color = "blue") + 
+  labs(title = "Students by Medu",
+       y = "Proportion",
+       x = "Medu")
+```
+
+### check and remove outliers if there are any
+```{r}
+data.new_Medu <- data$Medu
+boxplot(data.new_Medu)
+```
+on check et on supprime s'il y a des outliers :  soit des valeurs extremes et seules qui pourraient fausser les tests par la suite
+
+
+### statistical test
+```{r}
+cor.test(data$Medu, data$G3)
+```
+Parmi la liste des tests statistics on a choisi de prendre le "Pearson Correlation". Ce test est pertinant car il permet la force d'une association entre deux variables quantitatives continues. Ici p-value = 1,336e-05 indique un fort lien de corrélation entre Medu et la valeur G3.
+
+## Fedu
+```{r}
+summary(data$Fedu)
+boxplot.stats(data$Fedu)
+describe(data$Fedu)
+ggplot(data, aes(x = Fedu)) +
+  geom_dotplot(fill = "red", 
+               color = "blue") + 
+  labs(title = "Students by Fedu",
+       y = "Proportion",
+       x = "Fedu")
+```
+
+### check and remove outliers if there are any
+```{r}
+data.new_Fedu <- data$Medu
+boxplot(data.new_Fedu)
+```
+
+### statistical test
+```{r}
+cor.test(data$Fedu, data$G3)
+```
+## studytime
+```{r}
+summary(data$studytime)
+boxplot.stats(data$studytime)
+describe(data$studytime)
+ggplot(data, aes(x = studytime)) +
+  geom_dotplot(fill = "red", 
+               color = "blue") + 
+  labs(title = "Students by studytime",
+       y = "Proportion",
+       x = "studytime")
+```
+
+### check and remove outliers if there are any
+```{r}
+data.new_studytime <- data$studytime
+boxplot(data.new_studytime)
+data.new_studytime <- data$studytime[data$studytime < 4] 
+boxplot(data.new_studytime)
+```
+Ici on remarque la présence d'un outlier, on peut ainsi le supprimer pour ne pas fausser les tests par la suite.
+
+### statistical test
+```{r}
+cor.test(data$studytime, data$G3)
+```
+## Walc
+```{r}
+summary(data$Walc)
+boxplot.stats(data$Walc)
+describe(data$Walc)
+ggplot(data, aes(x = Walc)) +
+  geom_dotplot(fill = "red", 
+               color = "blue") + 
+  labs(title = "Students by Walc",
+       y = "Proportion",
+       x = "Walc")
+```
+
+### check and remove outliers if there are any
+```{r}
+data.new_Walc <- data$Walc
+boxplot(data.new_Walc)
+```
+
+### statistical test
+```{r}
+cor.test(data$Walc, data$G3)
+```
+Ici au contraire, p-value = 0.3032, ce qui n'indique pas de corrélation entre G3 et Walc.
+
+# 3.2 
+
+Dans cette sous-partie on établie une matrice de corrélation pour établir quelles données quantitatives sont corrélées avec la donnée G3.
+On enlève les données G2 et G3 qui ont un lien évident avec G3 et ne sont donc pas intéressantes à évaluer.
+```{r}
+options(dplyr.summarise.inform = FALSE)
+df <- dplyr::select(data, G3, Medu, Fedu, studytime, Walc)
+r <- cor(df, use="complete.obs")
+round(r,2)
+```
+
+```{r}
+ggcorrplot(r)
+```
+On remarque que les données Medu, Fedu et studytime ont un lien fort avec la donnée G3. La donnée Walc quant à elle n'a pas de corrélation avec la donnée G3, ce schéma nous confirme donc ce que nous avons évalué avec le test de Pearson juste avant.
+```{r}
+df <- data %>% 
+  select(G3, Medu, Fedu, studytime, Walc)
+ 
+ggpairs(df)
+```
+La matrice en scatterplot nous montre les données Medu, Fedu, studytime et Walc en comparaison avec G3. On observe ainsi que plus les notes sont bonnes en G3, plus il y a de valeurs élevées pour les données Medu et Fedu. On remarque aussi qu'il y a moins de valeurs pour la donnée Walc quand les notes en G3 sont élevées.
+
+# 3.3
+
+Dans cette sous-partie on réalise une multiple régression entre la donnée G3 et d'autres données quantitatives.
+```{r}
+model <- lm(data$G3 ~ data$G1 + data$G2)
+summary(model)
+```
+On fait un test simple avec les données G1 et G2 et on observe rapidement une nette corrélation entre les données G1,G2 et G3.
+Multiple R-squared : 0.8
+```{r}
+model <- lm(data$G3 ~ data$famrel + data$age + data$absences)
+summary(model)
+```
+Ici la corrélation est faible pour déterminer G3 si on prend uniquement famrel, age et absences. (0.03421)
+On note cependant une meilleure corrélation avec la donnée famrel (0.32664)
+```{r}
+model <- lm(data$G3 ~ data$freetime + data$goout + data$Dalc)
+summary(model)
+```
+Ici, on remarque une faible corrélation avec aucune donnée qui se sépare du reste.
+```{r}
+input <- data[,c("G3","goout")]
+ggplot(input, aes(goout, G3)) +
+  geom_point() +
+  stat_smooth(method = lm)
+
+input <- data[,c("G3","G2")]
+ggplot(input, aes(G2, G3)) +
+  geom_point() +
+  stat_smooth(method = lm)
+
+input <- data[,c("G3","famrel")]
+ggplot(input, aes(famrel, G3)) +
+  geom_point() +
+  stat_smooth(method = lm)
+```
+Ces graphiques nous montrent un résumé des mutliples régressions faites précédemment. Tandis que goout montre une faible corrélation avec de meilleures notes en math, G2 nous montre une corrélation quasi parfaite, et famrel une corrélation légère.
+
+# 4
+
+# 4.1
+Dans cette sous-partie, on représente des associations entre des données catégoriques et quantitatives.
+```{r}
+ggplot(data, 
+       aes(x = academicGrade, 
+           y = studytime)) +
+  geom_boxplot() +
+  labs(title = "Studytime done by academicGrade")
+```
+On remarque que plus les notes sont meilleures plus hautes sont le nombre d'heures d'études.
+
+```{r}
+plotdata <- data %>%
+  group_by(academicGrade) %>%
+  summarize(mean_failures = mean(failures))
+ggplot(plotdata, 
+       aes(x = academicGrade, 
+           y = mean_failures)) +
+  geom_bar(stat = "identity")
+```
+On remarque que plus les notes sont basses plus il y a de failures.
+```{r}
+plotdata <- data %>%
+  group_by(academicGrade) %>%
+  summarize(mean_absences = mean(absences))
+ggplot(plotdata, 
+       aes(x = academicGrade, 
+           y = mean_absences)) +
+  geom_bar(stat = "identity")
+```
+On remarque également que le nombre d'absences accru avec de moins bonnes notes en math.
+
+Conclusion : 
+
+On peut déterminer un certain nombre de facteurs qui peuvent influencer les notes en math en G3 avec les données (quantitatives et catégoriques) étudiées précédemment.
+Ainsi on a observé que les données catégoriques telles que Mjob, Fjob, et higher ont une plus forte corrélation avec de meilleures notes en math au contraire de l'école ou le choix du sexe.
+Les données quantitatives telles que Medu, Fedu, studytime ou encore famrel sont également un facteur de meilleures notes en math en G3.
+
+
+
+
+
+
+
+
+
+
+
+
+
